@@ -7,7 +7,7 @@
 
 static char buffer[2048];
 
-char* readline(char *prompt) {
+char* readline(char* prompt) {
   fputs(prompt, stdout);
   fgets(buffer, 2048, stdin);
   char* cpy = malloc(strlen(buffer) + 1);
@@ -108,7 +108,7 @@ lval* lval_read(mpc_ast_t* t) {
     return lval_sym(t->contents);
   }
 
-  lval *x = NULL;
+  lval* x = NULL;
   if (strcmp(t->tag, ">") == 0) {
     x = lval_sexpr();
   }
@@ -138,9 +138,9 @@ lval* lval_read(mpc_ast_t* t) {
   return x;
 }
 
-void lval_print(lval *v);
+void lval_print(lval* v);
 
-void lval_expr_print(lval *v, char open, char close) {
+void lval_expr_print(lval* v, char open, char close) {
   putchar(open);
   for (int i = 0; i < v->count; i++) {
     lval_print(v->cell[i]);
@@ -152,7 +152,7 @@ void lval_expr_print(lval *v, char open, char close) {
   putchar(close);
 }
 
-void lval_print(lval *v) {
+void lval_print(lval* v) {
   switch (v->type) {
   case LVAL_NUM:
     printf("%li", v->num);
@@ -169,7 +169,7 @@ void lval_print(lval *v) {
   }
 }
 
-void lval_println(lval *v) {
+void lval_println(lval* v) {
   lval_print(v);
   putchar('\n');
 }
@@ -276,18 +276,18 @@ lval* lval_eval_sexpr(lval* v) {
     return result;
 }
 
-static char *lisp_name = "plisp";
-static char *prompt_prefix = "> ";
+static char* lisp_name = "plisp";
+static char* prompt_prefix = "> ";
 
-int main(int argc, char **argv) {
-  /* Create parsers */
+int main(int argc, char** argv) {
+  //Create parsers
   mpc_parser_t *Number = mpc_new("number");
   mpc_parser_t *Symbol = mpc_new("symbol");
   mpc_parser_t *Sexpr = mpc_new("sexpr");
   mpc_parser_t *Expr = mpc_new("expr");
   mpc_parser_t *plisp = mpc_new("plisp");
 
-  /* Define them with language */
+  //Define them with language
   mpca_lang(MPCA_LANG_DEFAULT,
       "                                                     \
 	    number   : /-?[0-9]+/ ;                             \
@@ -303,13 +303,12 @@ int main(int argc, char **argv) {
 
   while (1) {
     printf("%s%s", lisp_name, prompt_prefix);
-    char *input = readline("");
+    char* input = readline("");
+    if (input == NULL) {break;}
     add_history(input);
 
     mpc_result_t r;
     if (mpc_parse("<stdin>", input, plisp, &r)) {
-      // lval result = eval(r.output);
-      // lval_println(result);
       lval* x = lval_read(r.output);
       lval* y = lval_eval(x);
       lval_del(x);
