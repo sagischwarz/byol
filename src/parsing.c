@@ -24,6 +24,19 @@ void add_history(char* unused) {}
 #define LASSERT(args, cond, err) \
     if (!(cond)) {lval_del(args); return lval_err(err);}
 
+#define LASSERT_ONEARG(args, func) \
+    LASSERT(args, args->count == 1, \
+            "Function '" func "' passed too many arguments!")
+
+#define LASSERT_ELIST(args, func) \
+    LASSERT(args, a->cell[0]->count != 0, \
+            "Function '" func "' passed {}!")
+
+#define LASSERT_FIRST_QEXPR(args, func) \
+    LASSERT(args, args->cell[0]->type == LVAL_QEXPR,\
+        "Function '" func "' passed incorrect type!")
+
+
 enum {LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_SEXPR , LVAL_QEXPR};
 
 typedef struct lval {
@@ -251,12 +264,9 @@ lval* builtin_op(lval* a, char* op) {
 }
 
 lval* builtin_head(lval* a) {
-    LASSERT(a, a->count == 1,
-        "Function 'head' passed too many arguments!");
-    LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
-        "Function 'head' passed incorrect type!");
-    LASSERT(a, a->cell[0]->count != 0,
-        "Function 'head' passed {}!");
+    LASSERT_ONEARG(a, "head");
+    LASSERT_FIRST_QEXPR(a, "head");
+    LASSERT_ELIST(a, "head");
 
     lval* v = lval_take(a, 0);
     while (v->count > 1) {lval_del(lval_pop(v, 1));}
@@ -264,12 +274,9 @@ lval* builtin_head(lval* a) {
 }
 
 lval* builtin_tail(lval* a) {
-    LASSERT(a, a->count == 1,
-        "Function 'tail' passed too many arguments!");
-    LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
-        "Function 'tail' passed incorrect type!");
-    LASSERT(a, a->cell[0]->count != 0,
-        "Function 'tail' passed {}!");
+    LASSERT_ONEARG(a, "tail");
+    LASSERT_FIRST_QEXPR(a, "tail");
+    LASSERT_ELIST(a, "tail");
 
     lval*  v= lval_take(a, 0);
     lval_del(lval_pop(v, 0));
@@ -282,10 +289,8 @@ lval* builtin_list(lval* a) {
 }
 
 lval* builtin_eval(lval* a) {
-    LASSERT(a, a->count == 1,
-        "Function 'eval' passed too many arguments!");
-    LASSERT(a, a->cell[0]->type == LVAL_QEXPR,
-        "Function 'eval' passed incorrect type!");
+    LASSERT_ONEARG(a, "eval");
+    LASSERT_FIRST_QEXPR(a, "eval");
 
     lval* x = lval_take(a, 0);
     x->type = LVAL_SEXPR;
@@ -303,8 +308,7 @@ lval* lval_join(lval* x, lval* y) {
 
 lval* builtin_join(lval* a) {
     for (int i = 0; i < a->count; i++) {
-        LASSERT(a, a->cell[i]->type == LVAL_QEXPR,
-            "Function 'join' passed incorrect type.");
+        LASSERT_FIRST_QEXPR(a, "join");
     }
 
     lval* x = lval_pop(a, 0);
