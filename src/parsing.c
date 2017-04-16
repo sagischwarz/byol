@@ -331,10 +331,21 @@ lval* builtin_len(lval* a) {
     return x;
 }
 
+lval* builtin_init(lval* a) {
+    LASSERT_ONEARG(a, "init");
+    LASSERT_FIRST_QEXPR(a, "init");
+    LASSERT_ELIST(a, "init");
+
+    lval*  v= lval_take(a, 0);
+    lval_del(lval_pop(v, v->count -1));
+    return v;
+}
+
 lval* builtin(lval* a, char* func) {
     if (strcmp("list", func) == 0) {return builtin_list(a);}
     if (strcmp("head", func) == 0) {return builtin_head(a);}
     if (strcmp("tail", func) == 0) {return builtin_tail(a);}
+    if (strcmp("init", func) == 0) {return builtin_init(a);}
     if (strcmp("join", func) == 0) {return builtin_join(a);}
     if (strcmp("eval", func) == 0) {return builtin_eval(a);}
     if (strcmp("len", func) == 0) {return builtin_len(a);}
@@ -386,6 +397,7 @@ int main(int argc, char** argv) {
             number   : /-?[0-9]+[.]?[0-9]*/ ;                     \
             symbol   : \"list\" | \"head\" | \"tail\"             \
                      | \"join\" | \"eval\" | \"len\"              \
+                     | \"init\"                                   \
                      | '+' | '-' | '*' | '/' | '%' ;              \
             sexpr    : '(' <expr>* ')' ;                          \
             qexpr    : '{' <expr>* '}' ;                          \
