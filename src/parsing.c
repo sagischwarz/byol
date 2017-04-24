@@ -456,24 +456,25 @@ lval* builtin_join(lenv* e, lval* a) {
     return x;
 }
 
-lval* builtin_len(lenv* e, lval* a) {
-    LASSERT_ONEARG(a, "head");
-    LASSERT_FIRST_QEXPR(a, "head");
-    LASSERT_ELIST(a, "head");
+lval* builtin_def(lenv* e, lval* a) {
+    LASSERT_FIRST_QEXPR(a, "def")
 
-    lval* x = lval_num(a->cell[0]->count);
+    lval* syms = a->cell[0];
+
+    for (int i=0; i < syms->count; i ++) {
+        LASSERT(a, syms->cell[i]->type == LVAL_SYM,
+                "Function 'def' cannot define non-symbol.");
+    }
+
+    LASSERT(a, syms->count == a->count-1,
+            "Function def cannot define incorrect number of values to symbols.");
+
+    for (int i=0; i < syms->count; i++) {
+        lenv_put(e, syms->cell[i], a->cell[i+1]);
+    }
+
     lval_del(a);
-    return x;
-}
-
-lval* builtin_init(lenv* e, lval* a) {
-    LASSERT_ONEARG(a, "init");
-    LASSERT_FIRST_QEXPR(a, "init");
-    LASSERT_ELIST(a, "init");
-
-    lval*  v= lval_take(a, 0);
-    lval_del(lval_pop(v, v->count -1));
-    return v;
+    return lval_sexpr();
 }
 
 void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
@@ -485,6 +486,7 @@ void lenv_add_builtin(lenv* e, char* name, lbuiltin func) {
 }
 
 void lenv_add_builtins(lenv* e) {
+    lenv_add_builtin(e, "def", builtin_def);
     lenv_add_builtin(e, "list", builtin_list);
     lenv_add_builtin(e, "head", builtin_head);
     lenv_add_builtin(e, "tail", builtin_tail);
@@ -538,7 +540,7 @@ int main(int argc, char** argv) {
     mpca_lang(MPCA_LANG_DEFAULT,
             "                                                     \
             number   : /-?[0-9]+[.]?[0-9]*/ ;                     \
-            symbol   : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&%]+/ ;         \
+            symbol   : /[a-zA-Z0-9_+\\-*\\/\\\\=<>!&%]+/ ;        \
             sexpr    : '(' <expr>* ')' ;                          \
             qexpr    : '{' <expr>* '}' ;                          \
             expr     : <number> | <symbol> | <sexpr> | <qexpr> ;  \
