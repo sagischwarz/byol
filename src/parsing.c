@@ -21,20 +21,27 @@ void add_history(char* unused) {}
 #include <editline/readline.h>
 #endif
 
-#define LASSERT(args, cond, err) \
-    if (!(cond)) {lval_del(args); return lval_err(err);}
+#define LASSERT(args, cond, fmt, ...) \
+    if (!(cond)) { \
+        lval* err = lval_err(fmt, ##__VA_ARGS__); \
+        lval_del(args); \
+        return err; \
+    }
 
-#define LASSERT_ONEARG(args, func) \
-    LASSERT(args, args->count == 1, \
-            "Function '" func "' passed too many arguments!")
+#define LASSERT_ONEARG(args, func, expected) \
+    LASSERT(args, args->count == expected, \
+            "Function '%s' passed too many arguments! Got %i, expected %i.", \
+            func, args->count, expected)
 
-#define LASSERT_ELIST(args, func) \
-    LASSERT(args, a->cell[0]->count != 0, \
-            "Function '" func "' passed {}!")
+#define LASSERT_ELIST(args, func, i) \
+    LASSERT(args, a->cell[i]->count != 0, \
+            "Function '%s' passed {} as argument at index %i!", \
+            func, i)
 
-#define LASSERT_FIRST_QEXPR(args, func) \
-    LASSERT(args, args->cell[0]->type == LVAL_QEXPR,\
-        "Function '" func "' passed incorrect type!")
+#define LASSERT_TYPE(args, func, i, expected) \
+    LASSERT(args, args->cell[i]->type == expected,\
+        "Function '%s' passed incorrect type at index %i! Got %s, expected %s.", \
+        func, i, ltype_name(args->cell[i]->type), ltype_name(expected))
 
 struct lval;
 struct lenv;
@@ -62,11 +69,21 @@ lval* lval_num(double x) {
     return v;
 }
 
-lval* lval_err(char* m) {
+lval* lval_err(char* fmt, ...) {
     lval* v = malloc(sizeof(lval));
     v->type = LVAL_ERR;
-    v->err = malloc(strlen(m) + 1);
-    strcpy(v->err, m);
+
+    va_list va;
+    va_start(va, fmt);
+
+    v->err = malloc(512);
+
+    vsnprintf(v->err, 511, fmt, va);
+
+    v->err= realloc(v->err, strlen(v->err) + 1);
+
+    va_end(va);
+
     return v;
 }
 
@@ -136,7 +153,8 @@ lval* lval_add(lval* v, lval* x) {
 lval* lval_read_num(mpc_ast_t* t) {
     errno = 0;
     double x = strtod(t->contents, NULL);
-    return errno != ERANGE ? lval_num(x) : lval_err("invalid number");
+    return errno != ERANGE ? lval_num(x) :
+           lval_err("Invalid number '%s'", t->contents);
 }
 
 lval* lval_read(mpc_ast_t* t) {
@@ -316,7 +334,7 @@ lval* lenv_get(lenv* e, lval* k) {
         }
     }
 
-    return lval_err("unbound symbol!");
+    return lval_err("Unbound symbol '%s'!", k->sym);
 }
 
 void lenv_put(lenv* e, lval* k, lval* v) {
@@ -337,14 +355,21 @@ void lenv_put(lenv* e, lval* k, lval* v) {
     strcpy(e->syms[e->count-1], k->sym);
 }
 
-
+char* ltype_name(int t) {
+    switch(t) {
+        case LVAL_FUN: return "Function";
+        case LVAL_NUM: return "Number";
+        case LVAL_ERR: return "Error";
+        case LVAL_SYM: return "Symbol";
+        case LVAL_SEXPR: return "S-Expression";
+        case LVAL_QEXPR: return "Q-Expression";
+        default: return "Unknown";
+    }
+}
 
 lval* builtin_op(lenv* e, lval* a, char* op) {
     for (int i=0; i < a->count; i++) {
-        if (a->cell[i]->type != LVAL_NUM) {
-            lval_del(a);
-            return lval_err("Cannot operate on non-number!");
-        }
+        LASSERT_TYPE(a, "op", i, LVAL_NUM)
     }
 
     lval* x = lval_pop(a, 0);
@@ -370,7 +395,7 @@ lval* builtin_op(lenv* e, lval* a, char* op) {
             if (is_int(x->num) && is_int(y->num)) {
                 x->num = (double)((int) x->num % (int) y->num);
             } else {
-                return lval_err("Modulo works only on integers.");
+                return lval_err("Modulo works only on integers, got x=%f and y=%f.", x->num, y->num);
             }
         }
         lval_del(y);
@@ -399,9 +424,9 @@ lval* builtin_mod(lenv* e, lval* a) {
 }
 
 lval* builtin_head(lenv* e, lval* a) {
-    LASSERT_ONEARG(a, "head");
-    LASSERT_FIRST_QEXPR(a, "head");
-    LASSERT_ELIST(a, "head");
+    LASSERT_ONEARG(a, "head", 1);
+    LASSERT_TYPE(a, "head", 0, LVAL_QEXPR);
+    LASSERT_ELIST(a, "head", 0);
 
     lval* v = lval_take(a, 0);
     while (v->count > 1) {lval_del(lval_pop(v, 1));}
@@ -409,9 +434,9 @@ lval* builtin_head(lenv* e, lval* a) {
 }
 
 lval* builtin_tail(lenv* e, lval* a) {
-    LASSERT_ONEARG(a, "tail");
-    LASSERT_FIRST_QEXPR(a, "tail");
-    LASSERT_ELIST(a, "tail");
+    LASSERT_ONEARG(a, "tail", 1);
+    LASSERT_TYPE(a, "tail", 0, LVAL_QEXPR);
+    LASSERT_ELIST(a, "tail", 0);
 
     lval*  v= lval_take(a, 0);
     lval_del(lval_pop(v, 0));
@@ -424,8 +449,8 @@ lval* builtin_list(lenv* e, lval* a) {
 }
 
 lval* builtin_eval(lenv* e, lval* a) {
-    LASSERT_ONEARG(a, "eval");
-    LASSERT_FIRST_QEXPR(a, "eval");
+    LASSERT_ONEARG(a, "eval", 1);
+    LASSERT_TYPE(a, "eval", 0, LVAL_QEXPR);
 
     lval* x = lval_take(a, 0);
     x->type = LVAL_SEXPR;
@@ -443,7 +468,7 @@ lval* lval_join(lval* x, lval* y) {
 
 lval* builtin_join(lenv* e, lval* a) {
     for (int i = 0; i < a->count; i++) {
-        LASSERT_FIRST_QEXPR(a, "join");
+        LASSERT_TYPE(a, "join", 0, LVAL_QEXPR);
     }
 
     lval* x = lval_pop(a, 0);
@@ -457,13 +482,14 @@ lval* builtin_join(lenv* e, lval* a) {
 }
 
 lval* builtin_def(lenv* e, lval* a) {
-    LASSERT_FIRST_QEXPR(a, "def")
+    LASSERT_TYPE(a, "def", 0, LVAL_QEXPR)
 
     lval* syms = a->cell[0];
 
     for (int i=0; i < syms->count; i ++) {
-        LASSERT(a, syms->cell[i]->type == LVAL_SYM,
-                "Function 'def' cannot define non-symbol.");
+        LASSERT(a, (syms->cell[i]->type == LVAL_SYM),
+                "Function 'def' cannot define non-symbol. Got %s and expected %s.",
+                ltype_name(syms->cell[i]->type), ltype_name(LVAL_SYM));
     }
 
     LASSERT(a, syms->count == a->count-1,
@@ -516,7 +542,8 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
     if (f->type != LVAL_FUN) {
         lval_del(v);
         lval_del(f);
-        return lval_err("first element is not a function");
+        return lval_err("first element is not a function, got '%s",
+                        ltype_name(f->type));
     }
 
     lval* result = f->fun(e, v);
