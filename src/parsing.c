@@ -1,4 +1,6 @@
 #include "../lib/mpc.h"
+#include "lval.h"
+#include "lenv.h"
 
 #ifdef _WIN32
 #include <string.h>
@@ -43,112 +45,6 @@ void add_history(char* unused) {}
         "Function '%s' passed incorrect type at index %i! Got %s, expected %s.", \
         func, i, ltype_name(args->cell[i]->type), ltype_name(expected))
 
-struct lval;
-struct lenv;
-typedef struct lval lval;
-typedef struct lenv lenv;
-
-enum {LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_FUN, LVAL_SEXPR , LVAL_QEXPR};
-
-typedef lval*(*lbuiltin)(lenv*, lval*);
-
-typedef struct lval {
-    int type;
-    double num;
-    char* err;
-    char* sym;
-    lbuiltin fun;
-    int count;
-    struct lval** cell;
-} lval;
-
-lval* lval_num(double x) {
-    lval* v = malloc(sizeof(lval));
-    v->type = LVAL_NUM;
-    v->num = x;
-    return v;
-}
-
-lval* lval_err(char* fmt, ...) {
-    lval* v = malloc(sizeof(lval));
-    v->type = LVAL_ERR;
-
-    va_list va;
-    va_start(va, fmt);
-
-    v->err = malloc(512);
-
-    vsnprintf(v->err, 511, fmt, va);
-
-    v->err= realloc(v->err, strlen(v->err) + 1);
-
-    va_end(va);
-
-    return v;
-}
-
-lval* lval_sym(char* s) {
-    lval* v = malloc(sizeof(lval));
-    v->type = LVAL_SYM;
-    v->sym = malloc(strlen(s) + 1);
-    strcpy(v->sym, s);
-    return v;
-}
-
-lval* lval_fun(lbuiltin func) {
-    lval* v = malloc(sizeof(lval));
-    v->type = LVAL_FUN;
-    v->fun = func;
-    return v;
-}
-
-lval* lval_sexpr(void) {
-    lval* v = malloc(sizeof(lval));
-    v->type = LVAL_SEXPR;
-    v->count = 0;
-    v->cell = NULL;
-    return v;
-}
-
-lval* lval_qexpr(void) {
-    lval* v = malloc(sizeof(lval));
-    v->type = LVAL_QEXPR;
-    v->count = 0;
-    v->cell = NULL;
-    return v;
-}
-
-void lval_del(lval* v) {
-    switch (v->type) {
-        case LVAL_NUM:
-            break;
-        case LVAL_FUN:
-            break;
-        case LVAL_ERR:
-            free(v->err);
-            break;
-        case LVAL_SYM:
-            free(v->sym);
-            break;
-        //If Qexpr or Sexpr then delete all elements inside
-        case LVAL_QEXPR:
-        case LVAL_SEXPR:
-            for (int i = 0; i < v->count; i++) {
-                lval_del(v->cell[i]);
-            }
-            free(v->cell);
-            break;
-    }
-
-    free(v);
-}
-
-lval* lval_add(lval* v, lval* x) {
-    v->count++;
-    v->cell = realloc(v->cell, sizeof(lval*) * v->count);
-    v->cell[v->count - 1] = x;
-    return v;
-}
 
 lval* lval_read_num(mpc_ast_t* t) {
     errno = 0;
@@ -267,92 +163,8 @@ lval* lval_eval(lenv* e, lval* v) {
     return v;
 }
 
-lval* lval_copy(lval* v) {
-    lval* x = malloc(sizeof(lval));
-    x->type = v->type;
-
-    switch (v->type) {
-        case LVAL_FUN:
-            x->fun = v->fun;
-            break;
-        case LVAL_NUM:
-            x->num = v->num;
-            break;
-        case LVAL_ERR:
-            x->err = malloc(strlen(v->err) + 1);
-            strcpy(x->err, v->err);
-            break;
-        case LVAL_SYM:
-            x->sym = malloc(strlen(v->sym) + 1);
-            strcpy(x->sym, v->sym);
-            break;
-        case LVAL_SEXPR:
-        case LVAL_QEXPR:
-            x->count = v->count;
-            x->cell = malloc(sizeof(lval*) * x->count);
-            for (int i=0; i < x->count; i++) {
-                x->cell[i] = lval_copy(v->cell[i]);
-            }
-            break;
-    }
-    return x;
-}
-
 int is_int(double val) {
     return ceilf(val) == val;
-}
-
-struct lenv {
-    int count;
-    char** syms;
-    lval** vals;
-};
-
-lenv* lenv_new(void) {
-    lenv* e = malloc(sizeof(lenv));
-    e->count = 0;
-    e->syms = NULL;
-    e->vals = NULL;
-    return e;
-}
-
-void lenv_del(lenv* e) {
-    for(int i=0; i < e->count; i++) {
-        lval_del(e->vals[i]);
-        free(e->syms[i]);
-    }
-
-    free(e->syms);
-    free(e->vals);
-    free(e);
-}
-
-lval* lenv_get(lenv* e, lval* k) {
-    for (int i=0; i < e->count; i++) {
-        if (strcmp(e->syms[i], k->sym) == 0) {
-            return lval_copy(e->vals[i]);
-        }
-    }
-
-    return lval_err("Unbound symbol '%s'!", k->sym);
-}
-
-void lenv_put(lenv* e, lval* k, lval* v) {
-    for (int i=0; i < e->count; i++) {
-        if (strcmp(e->syms[i], k->sym) == 0) {
-            lval_del(e->vals[i]);
-            e->vals[i] = lval_copy(v);
-            return;
-        }
-    }
-
-    e->count++;
-    e->vals = realloc(e->vals, sizeof(lval*) * e->count);
-    e->syms = realloc(e->syms, sizeof(char*) * e->count);
-
-    e->vals[e->count-1] = lval_copy(v);
-    e->syms[e->count-1] = malloc(strlen(k->sym)+1);
-    strcpy(e->syms[e->count-1], k->sym);
 }
 
 char* ltype_name(int t) {
@@ -542,7 +354,7 @@ lval* lval_eval_sexpr(lenv* e, lval* v) {
     if (f->type != LVAL_FUN) {
         lval_del(v);
         lval_del(f);
-        return lval_err("first element is not a function, got '%s",
+        return lval_err("first element is not a function, got '%s'",
                         ltype_name(f->type));
     }
 
