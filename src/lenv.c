@@ -1,4 +1,4 @@
-#include "lenv.h"
+#include "../include/lenv.h"
 
 lenv* lenv_new(void) {
     lenv* e = malloc(sizeof(lenv));
