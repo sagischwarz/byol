@@ -5,7 +5,7 @@ typedef struct lval lval;
 typedef struct lenv lenv;
 
 enum {LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_FUN, LVAL_SEXPR , LVAL_QEXPR};
-
+char* ltype_name(int t);
 typedef lval*(*lbuiltin)(lenv*, lval*);
 lval* lval_num(double x);
 lval* lval_err(char* fmt, ...);
