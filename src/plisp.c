@@ -23,9 +23,6 @@ void add_history(char* unused) {}
 #include <editline/history.h>
 #endif
 
-
-
-
 static char* lisp_name = "plisp";
 static char* prompt_prefix = "> ";
 
