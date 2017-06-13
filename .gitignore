@@ -61,3 +61,4 @@ bin
 compile_commands.json
 *.swp
 .idea
+cmake-build-debug
