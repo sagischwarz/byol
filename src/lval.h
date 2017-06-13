@@ -1,5 +1,4 @@
-#ifndef __LVAL_H__
-#define __LVAL_H__
+#pragma once
 struct lval;
 struct lenv;
 typedef struct lval lval;
@@ -27,4 +26,3 @@ typedef struct lval {
     int count;
     struct lval** cell;
 } lval;
-#endif
