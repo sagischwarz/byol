@@ -20,7 +20,8 @@ char* readline(char* prompt) {
 
 void add_history(char* unused) {}
 #else
-#include <editline/history.h>
+#include <readline/history.h>
+#include <readline/readline.h>
 #endif
 
 static char* lisp_name = "plisp";
